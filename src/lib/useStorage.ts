@@ -50,6 +50,8 @@ export function useStorage() {
           const userDoc = await getDoc(userDocRef);
           
           let firestoreData = getInitialData();
+          let shouldMigrateLocalData = false;
+
           if (userDoc.exists()) {
             const parsed = userDoc.data() as UserData;
             if (!parsed.customQuestions) parsed.customQuestions = [];
@@ -60,17 +62,50 @@ export function useStorage() {
               parsed.missions = [...INITIAL_MISSIONS];
             }
             firestoreData = parsed;
+          } else {
+            // First time logging in: migrate from local storage
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+              try {
+                const parsed = JSON.parse(saved);
+                if (!parsed.customQuestions) parsed.customQuestions = [];
+                const today = format(new Date(), 'yyyy-MM-dd');
+                if (parsed.lastMissionDate !== today) {
+                  parsed.lastMissionDate = today;
+                  parsed.missions = [...INITIAL_MISSIONS];
+                }
+                firestoreData = parsed;
+                shouldMigrateLocalData = true;
+              } catch (e) {
+                console.error("Local data migration parse error", e);
+              }
+            }
           }
           
-          // Also fetch custom questions assuming they are stored inside user document 
-          // or we can just fetch them from a subcollection. Let's keep them in the main user doc for simplicity if they fit, 
-          // but if they are large, subcollection is safer. We'll use a root collection: `customQuestions` where user == currentUser.
-          const customQSnapshot = await getDocs(collection(db, 'customQuestions'));
-          const customQuestions = customQSnapshot.docs
-            .map(d => d.data() as Question & { userId: string })
-            .filter(q => q.userId === currentUser.uid);
-            
-          firestoreData.customQuestions = customQuestions;
+          if (shouldMigrateLocalData && firestoreData.customQuestions.length > 0) {
+            // Write local custom questions to the new Firestore database
+            const batch = writeBatch(db);
+            const migratedQs: Question[] = [];
+            firestoreData.customQuestions.forEach(q => {
+              const qRef = doc(collection(db, 'customQuestions'));
+              const migratedQ = { ...q, id: qRef.id, userId: currentUser.uid };
+              batch.set(qRef, migratedQ);
+              migratedQs.push(migratedQ);
+            });
+            await batch.commit();
+            firestoreData.customQuestions = migratedQs;
+            // Write user data as well
+            const { customQuestions, ...userDataToSave } = firestoreData;
+            await setDoc(userDocRef, userDataToSave, { merge: true });
+          } else {
+            // Fetch custom questions from cloud
+            const customQSnapshot = await getDocs(collection(db, 'customQuestions'));
+            const customQuestions = customQSnapshot.docs
+              .map(d => d.data() as Question & { userId: string })
+              .filter(q => q.userId === currentUser.uid);
+              
+            firestoreData.customQuestions = customQuestions;
+          }
           
           setData(firestoreData);
         } catch (e) {
