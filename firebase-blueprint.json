@@ -1,0 +1,29 @@
+{
+  "$schema": "https://aistudio.google.com/blueprint/firebase.v1.json",
+  "projectInfo": {
+     "description": "Firestore blueprint for SMC Exam App."
+  },
+  "firestore": {
+     "rules": {
+        "__documentation": "Defines access control for Firestore collections.",
+        "collections": [
+           {
+              "name": "users",
+              "__documentation": "User data including progress, logs, and missions.",
+              "accessControl": {
+                 "read": "request.auth != null && request.auth.uid == document",
+                 "write": "request.auth != null && request.auth.uid == document"
+               }
+           },
+           {
+              "name": "customQuestions",
+              "__documentation": "Custom questions imported by users.",
+              "accessControl": {
+                 "read": "request.auth != null && resource.data.userId == request.auth.uid",
+                 "write": "request.auth != null && request.resource.data.userId == request.auth.uid"
+               }
+           }
+        ]
+     }
+  }
+}

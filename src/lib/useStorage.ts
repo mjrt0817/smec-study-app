@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { UserData, DailyLog, Mission, Badge, Question } from '../types';
 import { format } from 'date-fns';
+import { auth, db } from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc, setDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 
 const STORAGE_KEY = 'smec_study_data';
 
@@ -32,49 +35,149 @@ function getInitialData(): UserData {
 }
 
 export function useStorage() {
-  const [data, setData] = useState<UserData>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (!parsed.customQuestions) {
-          parsed.customQuestions = [];
+  const [data, setData] = useState<UserData>(getInitialData());
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(auth.currentUser);
+
+  // Auth listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        // Load data from Firestore
+        try {
+          const userDocRef = doc(db, 'users', currentUser.uid);
+          const userDoc = await getDoc(userDocRef);
+          
+          let firestoreData = getInitialData();
+          if (userDoc.exists()) {
+            const parsed = userDoc.data() as UserData;
+            if (!parsed.customQuestions) parsed.customQuestions = [];
+            
+            const today = format(new Date(), 'yyyy-MM-dd');
+            if (parsed.lastMissionDate !== today) {
+              parsed.lastMissionDate = today;
+              parsed.missions = [...INITIAL_MISSIONS];
+            }
+            firestoreData = parsed;
+          }
+          
+          // Also fetch custom questions assuming they are stored inside user document 
+          // or we can just fetch them from a subcollection. Let's keep them in the main user doc for simplicity if they fit, 
+          // but if they are large, subcollection is safer. We'll use a root collection: `customQuestions` where user == currentUser.
+          const customQSnapshot = await getDocs(collection(db, 'customQuestions'));
+          const customQuestions = customQSnapshot.docs
+            .map(d => d.data() as Question & { userId: string })
+            .filter(q => q.userId === currentUser.uid);
+            
+          firestoreData.customQuestions = customQuestions;
+          
+          setData(firestoreData);
+        } catch (e) {
+          console.error("Failed to load from Firestore", e);
         }
-        // ミッションの日付リセット
-        const today = format(new Date(), 'yyyy-MM-dd');
-        if (parsed.lastMissionDate !== today) {
-          parsed.lastMissionDate = today;
-          parsed.missions = [...INITIAL_MISSIONS];
+      } else {
+        // Load from LocalStorage
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (!parsed.customQuestions) parsed.customQuestions = [];
+            const today = format(new Date(), 'yyyy-MM-dd');
+            if (parsed.lastMissionDate !== today) {
+              parsed.lastMissionDate = today;
+              parsed.missions = [...INITIAL_MISSIONS];
+            }
+            setData(parsed);
+          } catch (e) {
+            setData(getInitialData());
+          }
         }
-        return parsed;
-      } catch (e) {
-        return getInitialData();
       }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const syncToFirestore = async (newData: UserData) => {
+    if (!user) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+      return;
     }
-    return getInitialData();
-  });
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      // We don't write customQuestions to the user doc directly anymore, 
+      // they are managed separately to prevent big doc size.
+      const { customQuestions, ...userDataToSave } = newData;
+      await setDoc(userDocRef, userDataToSave, { merge: true });
+    } catch(e) {
+      console.error("Failed to sync to Firestore", e);
+    }
+  };
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  }, [data]);
+    if (!loading) {
+      syncToFirestore(data);
+    }
+  }, [data, loading, user]);
 
   const updateProgress = (newData: Partial<UserData>) => {
     setData(prev => ({ ...prev, ...newData }));
   };
 
-  const importQuestions = (newQuestions: Question[]) => {
-    setData(prev => {
-      // 既存の問題IDと重複しないものだけ追加
-      const existingIds = new Set(prev.customQuestions.map(q => q.id));
-      const filtered = newQuestions.filter(q => !existingIds.has(q.id));
-      return {
+  const importQuestions = async (newQuestions: Question[]) => {
+    // 既存の問題IDと重複しないものだけ追加
+    const existingIds = new Set(data.customQuestions.map(q => q.id));
+    const filtered = newQuestions.filter(q => !existingIds.has(q.id));
+    
+    if (user && filtered.length > 0) {
+      // Create batch to write custom questions to Firestore Root Collection
+      try {
+        const batch = writeBatch(db);
+        filtered.forEach(q => {
+          const qRef = doc(collection(db, 'customQuestions'));
+          const questionToSave = { ...q, id: qRef.id, userId: user.uid };
+          batch.set(qRef, questionToSave);
+        });
+        await batch.commit();
+        
+        // Re-fetch all custom questions
+        const customQSnapshot = await getDocs(collection(db, 'customQuestions'));
+        const customQuestions = customQSnapshot.docs
+          .map(d => d.data() as Question & { userId: string })
+          .filter(q => q.userId === user.uid);
+
+        setData(prev => ({
+          ...prev,
+          customQuestions: customQuestions,
+        }));
+        return;
+      } catch (e) {
+        console.error("Failed to save custom questions to Firestore", e);
+      }
+    } else {
+      setData(prev => ({
         ...prev,
         customQuestions: [...prev.customQuestions, ...filtered],
-      };
-    });
+      }));
+    }
   };
 
-  const clearCustomQuestions = () => {
+  const clearCustomQuestions = async () => {
+    if (user) {
+      try {
+        const customQSnapshot = await getDocs(collection(db, 'customQuestions'));
+        const batch = writeBatch(db);
+        customQSnapshot.docs.forEach(d => {
+          if (d.data().userId === user.uid) {
+            batch.delete(d.ref);
+          }
+        });
+        await batch.commit();
+      } catch(e) {
+        console.error("Failed to delete from Firestore", e);
+      }
+    }
     setData(prev => ({ ...prev, customQuestions: [] }));
   };
 
@@ -147,5 +250,6 @@ export function useStorage() {
     });
   };
 
-  return { data, updateProgress, recordAnswer, importQuestions, clearCustomQuestions };
+  return { data, loading, user, updateProgress, recordAnswer, importQuestions, clearCustomQuestions };
 }
+
