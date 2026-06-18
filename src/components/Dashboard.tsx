@@ -26,25 +26,44 @@ export function Dashboard({ userData, subjects, questions, onStartStudy, onImpor
 
     setImportStatus('インポート中...');
 
+    // Try to parse with Shift_JIS (common for Excel CSVs in Japan)
     Papa.parse(file, {
-      header: true,
+      header: false,
       skipEmptyLines: true,
+      encoding: 'Shift_JIS',
       complete: (results) => {
         try {
-          const newQuestions: Question[] = results.data.map((row: any, index) => {
-            if (!row['No'] || !row['問題文']) return null;
+          const rows = results.data as string[][];
+          if (rows.length === 0) {
+            setImportStatus('データが見つかりませんでした。');
+            return;
+          }
+
+          // Skip header row if it contains 'No' or '問題文'
+          const firstRow = rows[0];
+          const hasHeader = firstRow.some(cell => typeof cell === 'string' && (cell.includes('No') || cell.includes('問題文')));
+          const dataRows = hasHeader ? rows.slice(1) : rows;
+
+          const newQuestions: Question[] = dataRows.map((row, index) => {
+            // Check if we have enough columns (at least 9 columns)
+            if (row.length < 9) return null;
+            const text = row[2];
+            const correctOptionId = row[7];
+            
+            if (!text) return null;
+
             return {
               id: `custom-${Date.now()}-${index}`,
               subjectId: '5', // 経営法務としてインポート
-              text: row['問題文'],
+              text: text.trim(),
               options: [
-                { id: '1', text: row['選択肢1'] },
-                { id: '2', text: row['選択肢2'] },
-                { id: '3', text: row['選択肢3'] },
-                { id: '4', text: row['選択肢4'] },
+                { id: '1', text: row[3]?.trim() || '' },
+                { id: '2', text: row[4]?.trim() || '' },
+                { id: '3', text: row[5]?.trim() || '' },
+                { id: '4', text: row[6]?.trim() || '' },
               ],
-              correctOptionId: String(row['正解番号']),
-              explanation: row['解説']
+              correctOptionId: String(correctOptionId).trim(),
+              explanation: row[8]?.trim() || ''
             };
           }).filter(Boolean) as Question[];
 
