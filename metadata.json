@@ -1,0 +1,8 @@
+{
+  "name": "SmecFocus: 診断士1問1答",
+  "description": "中小企業診断士1次試験対策用の4択1問1答アプリ。忘却曲線に基づく出題スケジュール、ゲーミフィケーションバッジ、デイリーミッションを搭載し、オフライン環境でも学習記録を維持します。",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
