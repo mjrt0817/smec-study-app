@@ -3,12 +3,12 @@ import { getFirestore } from 'firebase/firestore';
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 
 const firebaseConfig = {
-  projectId: "gen-lang-client-0125274260",
-  appId: "1:525064586221:web:a118584b93f9db49669de4",
-  apiKey: "AIzaSyAfgEV9oDQQPnlP7r-RnAYRKlEB6vL-S5I",
-  authDomain: "gen-lang-client-0125274260.firebaseapp.com",
-  storageBucket: "gen-lang-client-0125274260.firebasestorage.app",
-  messagingSenderId: "525064586221",
+  apiKey: "AIzaSyA7HEK0181ZDogpbBum7ubRW5FXYr3zeMM",
+  authDomain: "smec-exam-app.firebaseapp.com",
+  projectId: "smec-exam-app",
+  storageBucket: "smec-exam-app.firebasestorage.app",
+  messagingSenderId: "497871148123",
+  appId: "1:497871148123:web:fffb64f43f4aed1a8f1b7e"
 };
 
 const app = initializeApp(firebaseConfig);
