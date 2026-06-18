@@ -16,8 +16,8 @@ interface Props {
 
 export function StudySession({ questions, subjects, userData, mode, subjectId, onFinish, onAnswer }: Props) {
   
-  // Filter questions based on mode and subject
-  const sessionQuestions = useMemo(() => {
+  // Filter and shuffle questions only once upon mount
+  const [sessionQuestions] = useState(() => {
     let filtered = questions;
     if (subjectId) {
       filtered = filtered.filter(q => q.subjectId === subjectId);
@@ -33,15 +33,14 @@ export function StudySession({ questions, subjects, userData, mode, subjectId, o
         if (p.nextReviewAt <= now) return true; // Due for review
         return false;
       });
-      // If no new/due questions, just shuffle all for practice? 
-      // Actually let's just let them review anything if it's normal mode and they insist.
+      // If no new/due questions, just shuffle all for practice
       if (filtered.length === 0 && subjectId) {
          filtered = questions.filter(q => q.subjectId === subjectId);
       }
     }
     // Shuffle
     return [...filtered].sort(() => Math.random() - 0.5).slice(0, 10); // Max 10 per session
-  }, [questions, userData.progress, mode, subjectId]);
+  });
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
