@@ -11,8 +11,8 @@ interface Props {
   subjects: Subject[];
   questions: Question[];
   onStartStudy: (mode: 'normal' | 'weakness', subjectId?: string) => void;
-  onImportQuestions?: (questions: Question[]) => void;
-  onClearCustomQuestions?: () => void;
+  onImportQuestions?: (questions: Question[]) => Promise<void> | void;
+  onClearCustomQuestions?: () => Promise<void> | void;
 }
 
 export function Dashboard({ userData, subjects, questions, onStartStudy, onImportQuestions, onClearCustomQuestions }: Props) {
@@ -32,7 +32,7 @@ export function Dashboard({ userData, subjects, questions, onStartStudy, onImpor
       header: false,
       skipEmptyLines: true,
       encoding: 'Shift_JIS',
-      complete: (results) => {
+      complete: async (results) => {
         try {
           const rows = results.data as string[][];
           if (rows.length === 0) {
@@ -69,7 +69,8 @@ export function Dashboard({ userData, subjects, questions, onStartStudy, onImpor
           }).filter(Boolean) as Question[];
 
           if (onImportQuestions && newQuestions.length > 0) {
-            onImportQuestions(newQuestions);
+            setImportStatus('データベースに保存中...');
+            await onImportQuestions(newQuestions);
             setImportStatus(`${newQuestions.length}問のインポートが完了しました！`);
           } else {
             setImportStatus('CSVの形式を確認してください。データが見つかりませんでした。');
@@ -77,6 +78,7 @@ export function Dashboard({ userData, subjects, questions, onStartStudy, onImpor
           if (fileInputRef.current) fileInputRef.current.value = '';
           setTimeout(() => setImportStatus(''), 5000);
         } catch (error) {
+          console.error(error);
           setImportStatus('データの解析中にエラーが発生しました。');
           setTimeout(() => setImportStatus(''), 5000);
         }

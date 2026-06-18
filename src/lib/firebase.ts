@@ -13,10 +13,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// The user's requested firestoreDatabaseId
-const firestoreDatabaseId = "ai-studio-d0db6707-4bff-4ffa-9012-738e5d076770";
-
-export const db = getFirestore(app, firestoreDatabaseId);
+export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
