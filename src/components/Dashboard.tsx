@@ -19,6 +19,7 @@ export function Dashboard({ userData, subjects, questions, onStartStudy, onImpor
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus] = useState<string>('');
+  const [importSubjectId, setImportSubjectId] = useState<string>('5');
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -54,7 +55,7 @@ export function Dashboard({ userData, subjects, questions, onStartStudy, onImpor
 
             return {
               id: `custom-${Date.now()}-${index}`,
-              subjectId: '5', // 経営法務としてインポート
+              subjectId: importSubjectId, // Use the selected subject
               text: text.trim(),
               options: [
                 { id: '1', text: row[3]?.trim() || '' },
@@ -265,6 +266,18 @@ export function Dashboard({ userData, subjects, questions, onStartStudy, onImpor
               <div className="text-[11px] text-slate-500 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">
                 お持ちのCSVファイルから問題を追加できます。<br />
                 <span className="font-mono text-[10px]">ヘッダ: No,分野1-分野2,問題文,選択肢1,選択肢2,選択肢3,選択肢4,正解番号,解説</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <label className="text-xs font-bold text-slate-700">追加先の科目:</label>
+                <select 
+                  className="flex-1 border border-slate-200 rounded-md text-xs p-1.5 focus:ring-1 focus:ring-blue-500"
+                  value={importSubjectId}
+                  onChange={(e) => setImportSubjectId(e.target.value)}
+                >
+                  {subjects.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
               </div>
               <input 
                 type="file" 
