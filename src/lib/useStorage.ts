@@ -3,7 +3,7 @@ import { UserData, DailyLog, Mission, Badge, Question } from '../types';
 import { format } from 'date-fns';
 import { auth, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, writeBatch, query, where } from 'firebase/firestore';
 
 const STORAGE_KEY = 'smec_study_data';
 
@@ -99,10 +99,10 @@ export function useStorage() {
             await setDoc(userDocRef, userDataToSave, { merge: true });
           } else {
             // Fetch custom questions from cloud
-            const customQSnapshot = await getDocs(collection(db, 'customQuestions'));
+            const customQQuery = query(collection(db, 'customQuestions'), where('userId', '==', currentUser.uid));
+            const customQSnapshot = await getDocs(customQQuery);
             const customQuestions = customQSnapshot.docs
-              .map(d => d.data() as Question & { userId: string })
-              .filter(q => q.userId === currentUser.uid);
+              .map(d => d.data() as Question & { userId: string });
               
             firestoreData.customQuestions = customQuestions;
           }
@@ -177,10 +177,10 @@ export function useStorage() {
         await batch.commit();
         
         // Re-fetch all custom questions
-        const customQSnapshot = await getDocs(collection(db, 'customQuestions'));
+        const customQQuery = query(collection(db, 'customQuestions'), where('userId', '==', user.uid));
+        const customQSnapshot = await getDocs(customQQuery);
         const customQuestions = customQSnapshot.docs
-          .map(d => d.data() as Question & { userId: string })
-          .filter(q => q.userId === user.uid);
+          .map(d => d.data() as Question & { userId: string });
 
         setData(prev => ({
           ...prev,
@@ -201,12 +201,11 @@ export function useStorage() {
   const clearCustomQuestions = async () => {
     if (user) {
       try {
-        const customQSnapshot = await getDocs(collection(db, 'customQuestions'));
+        const customQQuery = query(collection(db, 'customQuestions'), where('userId', '==', user.uid));
+        const customQSnapshot = await getDocs(customQQuery);
         const batch = writeBatch(db);
         customQSnapshot.docs.forEach(d => {
-          if (d.data().userId === user.uid) {
-            batch.delete(d.ref);
-          }
+          batch.delete(d.ref);
         });
         await batch.commit();
       } catch(e) {
