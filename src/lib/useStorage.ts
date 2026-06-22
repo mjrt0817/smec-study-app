@@ -198,10 +198,16 @@ export function useStorage() {
     }
   };
 
-  const clearCustomQuestions = async () => {
+  const clearCustomQuestions = async (subjectId?: string) => {
     if (user) {
       try {
-        const customQQuery = query(collection(db, 'customQuestions'), where('userId', '==', user.uid));
+        let customQQuery;
+        if (subjectId) {
+           customQQuery = query(collection(db, 'customQuestions'), where('userId', '==', user.uid), where('subjectId', '==', subjectId));
+        } else {
+           customQQuery = query(collection(db, 'customQuestions'), where('userId', '==', user.uid));
+        }
+        
         const customQSnapshot = await getDocs(customQQuery);
         const batch = writeBatch(db);
         customQSnapshot.docs.forEach(d => {
@@ -212,7 +218,12 @@ export function useStorage() {
         console.error("Failed to delete from Firestore", e);
       }
     }
-    setData(prev => ({ ...prev, customQuestions: [] }));
+    setData(prev => ({ 
+      ...prev, 
+      customQuestions: subjectId 
+        ? prev.customQuestions.filter(q => q.subjectId !== subjectId)
+        : [] 
+    }));
   };
 
   const recordAnswer = (isCorrect: boolean, isWeaknessReview: boolean = false) => {

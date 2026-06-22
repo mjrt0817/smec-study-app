@@ -12,7 +12,7 @@ interface Props {
   questions: Question[];
   onStartStudy: (mode: 'normal' | 'weakness', subjectId?: string) => void;
   onImportQuestions?: (questions: Question[]) => Promise<void> | void;
-  onClearCustomQuestions?: () => Promise<void> | void;
+  onClearCustomQuestions?: (subjectId?: string) => Promise<void> | void;
 }
 
 export function Dashboard({ userData, subjects, questions, onStartStudy, onImportQuestions, onClearCustomQuestions }: Props) {
@@ -299,19 +299,43 @@ export function Dashboard({ userData, subjects, questions, onStartStudy, onImpor
               {importStatus && <p className="text-[10px] text-blue-600 mt-1 font-medium">{importStatus}</p>}
 
               {userData.customQuestions && userData.customQuestions.length > 0 && (
-                <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-[10px] text-slate-500 font-medium">追加済: {userData.customQuestions.length}問</span>
-                  <button 
-                    onClick={() => {
-                      if (window.confirm('インポートした問題をすべて削除しますか？')) {
-                        onClearCustomQuestions?.();
-                      }
-                    }}
-                    className="text-[10px] text-rose-500 hover:text-rose-600 flex items-center px-2 py-1 rounded hover:bg-rose-50 transition"
-                  >
-                    <Trash2 size={12} className="mr-1" />
-                    すべて削除
-                  </button>
+                <div className="pt-3 mt-3 border-t border-slate-100 flex flex-col space-y-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-bold text-slate-700">追加済みの問題</span>
+                    <button 
+                      onClick={() => {
+                        if (window.confirm('インポートしたすべての問題を削除しますか？')) {
+                          onClearCustomQuestions?.();
+                        }
+                      }}
+                      className="text-[10px] text-rose-500 hover:text-rose-600 flex items-center px-2 py-1 rounded hover:bg-rose-50 transition"
+                    >
+                      <Trash2 size={12} className="mr-1" />
+                      すべて削除
+                    </button>
+                  </div>
+                  {subjects.map(subject => {
+                    const subjectQuestions = userData.customQuestions.filter(q => q.subjectId === subject.id);
+                    if (subjectQuestions.length === 0) return null;
+                    return (
+                      <div key={subject.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-white border border-slate-200 p-2 rounded-md shadow-sm">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-[11px] font-medium text-slate-800">{subject.name}</span>
+                          <span className="text-[10px] text-slate-500 px-1.5 py-0.5 bg-slate-100 rounded-full">{subjectQuestions.length}問</span>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            if (window.confirm(`「${subject.name}」に追加された問題（${subjectQuestions.length}問）を削除しますか？`)) {
+                              onClearCustomQuestions?.(subject.id);
+                            }
+                          }}
+                          className="mt-2 sm:mt-0 text-[10px] text-rose-500 hover:text-rose-600 flex items-center px-2 py-1 rounded hover:bg-rose-50 transition border border-rose-100 sm:border-transparent"
+                        >
+                          削除
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
